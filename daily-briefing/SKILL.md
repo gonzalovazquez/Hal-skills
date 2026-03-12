@@ -12,14 +12,38 @@ quantum_alert_threshold: 10    # 🚨 Alert if RGTI, IONQ, or QBTS moves ±this%
 metadata:
 openclaw:
 requires:
-bins: [“gog”, “wacli”]
+bins: [“gog”, “wacli”, “python3”, “pip”]
 tools: [“exec”, “web_search”, “web_fetch”, “message”, “cron”]
+setup: |
+pip install yfinance –quiet –break-system-packages
+gog auth status || echo “⚠️  gog not authenticated — run: gog auth login”
 
 ## Purpose
 
 Run every morning at 5:00 AM Toronto time. Fetch context from email, calendar, weather,
 and live stock data. Compose a concise WhatsApp briefing and send it to the user.
 The message must be readable in under 60 seconds — no walls of text.
+
+-----
+
+## Step 0 — Pre-flight Auth Check
+
+Before running any steps, verify `gog` is authenticated. If not, skip Steps 1 and 2
+gracefully rather than failing silently.
+
+```
+gog auth status
+```
+
+- If output is `authenticated`: proceed to Step 1.
+- If output is `unauthenticated` or errors: skip Steps 1 and 2, insert this placeholder
+  in the briefing:
+  
+  ```
+  ⚠️ Google auth expired — run: gog auth login
+  ```
+  
+  Then continue with Steps 3, 4, and 5 as normal.
 
 -----
 
@@ -97,8 +121,45 @@ Today: High 8°C / Low -2°C
 
 ## Step 4 — Portfolio Summary
 
-Fetch live USD prices for the four tickers below using `web_search` or `web_fetch`.
-Also fetch the current USD/CAD exchange rate.
+Fetch live USD prices using `yfinance` (Python) and the USD/CAD rate from the free
+Open Exchange Rates API. No API keys required for either.
+
+**Step 4a — Fetch stock prices and day change via yfinance:**
+
+```python
+import yfinance as yf
+import json
+
+tickers = ["RGTI", "IONQ", "QBTS", "NVDA"]
+results = {}
+
+for symbol in tickers:
+    t = yf.Ticker(symbol)
+    hist = t.history(period="2d")
+    if len(hist) >= 2:
+        prev_close = hist["Close"].iloc[-2]
+        current    = hist["Close"].iloc[-1]
+        day_change_pct = ((current - prev_close) / prev_close) * 100
+    else:
+        current = hist["Close"].iloc[-1]
+        day_change_pct = 0.0
+    results[symbol] = {
+        "price_usd": round(float(current), 4),
+        "day_change_pct": round(float(day_change_pct), 2)
+    }
+
+print(json.dumps(results))
+```
+
+Run with: `python3 fetch_prices.py`
+
+**Step 4b — Fetch USD/CAD exchange rate (no API key):**
+
+```
+web_fetch: https://open.er-api.com/v6/latest/USD
+```
+
+Extract: `response.rates.CAD` — this is the live USD/CAD multiplier.
 
 **Portfolio (do not change these values — these are the user’s cost basis):**
 
@@ -111,11 +172,12 @@ Also fetch the current USD/CAD exchange rate.
 
 **Calculation logic per ticker:**
 
-1. Fetch live USD price
-1. Convert to CAD: `USD price × current USD/CAD rate`
-1. Market Value (CAD) = `CAD price × quantity`
-1. P&L (CAD) = `Market Value − (avg cost × quantity)`
-1. P&L % = `(P&L / (avg cost × quantity)) × 100`
+1. `price_usd` from yfinance
+1. `price_cad = price_usd × rates.CAD`
+1. `market_value_cad = price_cad × qty`
+1. `cost_basis_cad = avg_cost_cad × qty`
+1. `pnl_cad = market_value_cad − cost_basis_cad`
+1. `pnl_pct = (pnl_cad / cost_basis_cad) × 100`
 
 **Output format:**
 
@@ -224,8 +286,9 @@ openclaw cron list
 
 ## Optimization Notes
 
-1. **FX Rate freshness** — The USD/CAD rate is fetched live each morning, so portfolio
-   values reflect the real CAD equivalent at time of delivery.
+1. **FX Rate freshness** — USD/CAD is fetched live from `open.er-api.com/v6/latest/USD`
+   each morning (free, no API key, updates hourly). Portfolio CAD values reflect the
+   real exchange rate at time of delivery.
 1. **Quantum stock volatility** — RGTI, IONQ, and QBTS are monitored with a ±10% single-day
    alert threshold (active). To adjust the sensitivity, change `quantum_alert_threshold` in
    the config frontmatter. Set to `null` to revert to summary-only.
