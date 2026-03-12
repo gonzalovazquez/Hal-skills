@@ -16,11 +16,24 @@ Each morning the agent runs five steps in sequence and sends a single, readable 
 
 ## Requirements
 
-|Dependency                                                          |Purpose                                       |
-|--------------------------------------------------------------------|----------------------------------------------|
-|`gog`                                                               |Google Workspace CLI — Gmail + Calendar access|
-|`wacli`                                                             |WhatsApp CLI — sends the briefing to self     |
-|OpenClaw tools: `exec`, `web_search`, `web_fetch`, `message`, `cron`|Core runtime                                  |
+|Dependency                                                          |Purpose                                             |
+|--------------------------------------------------------------------|----------------------------------------------------|
+|`gog`                                                               |Google Workspace CLI — Gmail + Calendar access      |
+|`wacli`                                                             |WhatsApp CLI — sends the briefing to self           |
+|`python3` + `yfinance`                                              |Stock price + day-change fetch (no API key needed)  |
+|`open.er-api.com`                                                   |Live USD/CAD exchange rate (free, no API key needed)|
+|OpenClaw tools: `exec`, `web_search`, `web_fetch`, `message`, `cron`|Core runtime                                        |
+
+### First-time Google auth (one-time setup)
+
+Before the first run, authenticate `gog` on the machine running OpenClaw:
+
+```bash
+gog auth login
+```
+
+This opens a browser OAuth flow for Gmail and Google Calendar. The token is stored locally
+and persists across reboots. The skill will remind you via WhatsApp if it ever expires.
 
 -----
 
