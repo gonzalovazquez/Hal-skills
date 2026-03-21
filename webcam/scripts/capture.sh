@@ -25,7 +25,9 @@ if ! command -v ffmpeg &> /dev/null; then
 fi
 
 # Check webcam is connected
-if ! ffmpeg -f avfoundation -list_devices true -i "" 2>&1 | grep -q "USB Camera"; then
+# Note: ffmpeg -list_devices always exits non-zero, so we capture output first
+DEVICE_LIST=$(ffmpeg -f avfoundation -list_devices true -i "" 2>&1 || true)
+if ! echo "$DEVICE_LIST" | grep -q "USB Camera"; then
     echo "ERROR: Webcam not detected. Check USB connection."
     exit 1
 fi
@@ -42,7 +44,7 @@ case "$MODE" in
             -i "${VIDEO_DEVICE}:none" \
             -frames:v $((WARMUP_FRAMES + 1)) \
             -y -update 1 \
-            "$OUTPUT" 2>/dev/null
+            "$OUTPUT" 2>/dev/null || true
 
         if [ -s "$OUTPUT" ]; then
             echo "OK: $OUTPUT"
@@ -68,7 +70,7 @@ case "$MODE" in
             -t "$DURATION" \
             -c:v libx264 -preset ultrafast -crf 23 \
             -c:a aac -b:a 128k \
-            -y "$OUTPUT" 2>/dev/null
+            -y "$OUTPUT" 2>/dev/null || true
 
         # If video+audio failed, try video only
         if [ ! -s "$OUTPUT" ]; then
@@ -76,7 +78,7 @@ case "$MODE" in
                 -i "${VIDEO_DEVICE}:none" \
                 -t "$DURATION" \
                 -c:v libx264 -preset ultrafast -crf 23 \
-                -y "$OUTPUT" 2>/dev/null
+                -y "$OUTPUT" 2>/dev/null || true
         fi
 
         if [ -s "$OUTPUT" ]; then
@@ -99,7 +101,7 @@ case "$MODE" in
         TEMP="/tmp/hal-webcam-test.jpg"
         ffmpeg -f avfoundation -framerate "$FRAMERATE" -video_size "640x480" \
             -i "${VIDEO_DEVICE}:none" \
-            -frames:v 1 -y "$TEMP" 2>/dev/null
+            -frames:v 1 -update 1 -y "$TEMP" 2>/dev/null || true
 
         if [ -s "$TEMP" ]; then
             echo "OK: Webcam is working"
