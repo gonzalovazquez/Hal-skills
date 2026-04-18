@@ -137,9 +137,51 @@ To update a position, edit the portfolio table in `daily-briefing/SKILL.md` unde
 ```
 openclaw-daily-briefing/
 ├── README.md                  ← this file
-└── daily-briefing/
-    └── SKILL.md               ← the skill OpenClaw reads
+├── daily-briefing/
+│   └── SKILL.md               ← morning briefing skill
+├── webcam/
+│   └── SKILL.md               ← webcam capture skill
+└── networking/
+    └── SKILL.md               ← LinkedIn → Notion CRM → Gmail → Calendly
 ```
+
+-----
+
+## Networking Skill
+
+A separate skill in `networking/` that turns a LinkedIn Connections CSV
+export into a Notion-backed CRM and drives outreach through Gmail and
+Calendly. See `networking/SKILL.md` for the full workflow.
+
+Requires three MCP servers to be registered with OpenClaw:
+
+- **Notion MCP** — database read/write (single source of truth for pipeline state)
+- **Gmail MCP** — draft outreach + follow-ups, detect sends and replies
+- **Calendly MCP** — sync confirmed bookings back into Notion
+
+First-time setup:
+
+1. Connect the Notion, Gmail, and Calendly MCP servers.
+2. Drop your LinkedIn export at `~/.openclaw/networking/Connections.csv`.
+3. Run once manually to create the Notion database:
+   `openclaw run networking`.
+4. Register the cron (daily at 9 AM Toronto):
+
+   ```json
+   {
+     "cron": {
+       "networking": {
+         "skill": "networking",
+         "schedule": "0 9 * * *",
+         "timezone": "America/Toronto",
+         "enabled": true
+       }
+     }
+   }
+   ```
+
+All outreach is saved as Gmail **drafts** — you stay in the loop and
+press send yourself. The skill never auto-emails anyone.
 
 -----
 
